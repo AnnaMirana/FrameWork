@@ -51,9 +51,8 @@ public class FrontServlet extends HttpServlet {
                 ClassMethod classMethod = urlHandler.getByUrl(mapUrl, url);
 
                 if (classMethod != null) {
-                    out.println("ServletPath : " + url);
-                    out.print("Class : " + classMethod.getClass().getSimpleName() + ", Methode : "
-                            + classMethod.getMethod().getName());
+                    String rep = urlHandler.appelleMethode(classMethod);
+                    out.println(rep);
                 } else {
                     out.println("<h1>404 : Not Found</h1>");
                 }
