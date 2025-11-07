@@ -2,8 +2,13 @@ package com.mhframework.servlet;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.HashMap;
+
+import com.mhframework.handler.controller.ClassMethod;
+import com.mhframework.handler.controller.UrlHandler;
 
 import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.ServletContext;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,10 +17,17 @@ import jakarta.servlet.http.HttpServletResponse;
 public class FrontServlet extends HttpServlet {
 
     private RequestDispatcher dispatcher;
+    private HashMap<String, ClassMethod> mapUrl;
+    private UrlHandler urlHandler;
 
     @Override
     public void init() throws ServletException {
         dispatcher = getServletContext().getNamedDispatcher("default");
+        urlHandler = new UrlHandler();
+        mapUrl = urlHandler.urlMapping();
+
+        ServletContext context = getServletContext();
+        context.setAttribute("urlMapping", mapUrl);
     }
 
     private boolean isRessource(String path) throws IOException {
@@ -32,7 +44,25 @@ public class FrontServlet extends HttpServlet {
             res.setContentType("text/plain;charset=UTF-8");
 
             PrintWriter out = res.getWriter();
-            out.println("ServletPath : " + req.getServletPath());
+            try {
+
+                String url = req.getServletPath();
+
+                ClassMethod classMethod = urlHandler.getByUrl(mapUrl, url);
+
+                if (classMethod != null) {
+                    out.println("ServletPath : " + url);
+                    out.print("Class : " + classMethod.getClass().getSimpleName() + ", Methode : "
+                            + classMethod.getMethod().getName());
+                } else {
+                    out.println("<h1>404 : Not Found</h1>");
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace(out);
+                throw new ServletException(e.getMessage());
+            }
+
         }
 
     }

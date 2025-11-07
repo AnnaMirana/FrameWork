@@ -1,8 +1,9 @@
 package com.mhframework.utils;
 
 import java.io.File;
-import java.io.IOException;
+import java.lang.annotation.Annotation;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
@@ -17,54 +18,82 @@ public class PackageScanner {
         this.packageName = packageName;
     }
 
-    public List<Class<?>> getClassAnnote() throws Exception {
-        List<Class<?>> filtreClass = getClasses()
-                            .stream()
-                            .filter(e -> e.getAnnotation(Controller.class) != null)
-                            .toList();
-        return filtreClass;
+    public List<Class<?>> clsController() {
+        return getListAnnote(getProjectClasses(), Controller.class);
     }
 
-    public List<Class<?>> getClasses() throws ClassNotFoundException, IOException {
-        List<Class<?>> classes = new ArrayList<>();
-        String path = packageName.replace('.', '/');
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        Enumeration<URL> resources = classLoader.getResources(path);
+    public  static List<Class<?>> getListAnnote(List<Class<?>> classes, Class<? extends Annotation> cls) {
+        return classes
+                .stream()
+                .filter(e -> e.getAnnotation(cls) != null)
+                .toList();
+    }
 
-        while (resources.hasMoreElements()) {
-            URL resource = resources.nextElement();
-            File directory = new File(resource.getFile());
-            if (directory.exists()) {
-                classes.addAll(findClasses(directory, packageName));
+    private List<Class<?>> getProjectClasses() {
+        List<Class<?>> classes = new ArrayList<>();
+
+        try {
+            String path = (packageName == null ? "" : packageName.replace(".", "/"));
+
+            Enumeration<URL> resources = Thread.currentThread().getContextClassLoader().getResources(path);
+
+            while (resources.hasMoreElements()) {
+                URL resource = resources.nextElement();
+                System.out.println(resource);
+
+                if (resource.getProtocol().equals("file")) {
+                    File directory = new File(URLDecoder.decode(resource.getFile(), "UTF-8"));
+                    scanDirectory(directory, directory.getAbsolutePath(), classes);
+                }
             }
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
         return classes;
     }
 
-    private List<Class<?>> findClasses(File directory, String packageName) throws ClassNotFoundException {
-        List<Class<?>> classes = new ArrayList<>();
+    private void scanDirectory(File directory, String directoryRootPath, List<Class<?>> classes) {
         File[] files = directory.listFiles();
         if (files == null)
-            return classes;
+            return;
 
         for (File file : files) {
+
             if (file.isDirectory()) {
-                // Parcours récursif des sous-packages
-                classes.addAll(findClasses(file, packageName + "." + file.getName()));
-            } else if (file.getName().endsWith(".class")) {
-                String className = packageName + '.' + file.getName().replace(".class", "");
-                classes.add(Class.forName(className));
+                scanDirectory(file, directoryRootPath, classes);
+                continue;
+            }
+
+            if (file.getName().endsWith(".class")) {
+                String absolute = file.getAbsolutePath();
+
+                int substrCpt;
+
+                if (packageName == null || packageName.length() == 0) {
+                    substrCpt = directoryRootPath.length() + 1;
+                } else {
+                    substrCpt = directoryRootPath.length() - packageName.length();
+                }
+
+                String relative = absolute.substring(substrCpt);
+
+                String className = relative
+                        .replace(File.separatorChar, '.')
+                        .replace(".class", "");
+
+                try {
+                    Class<?> cls = Thread.currentThread()
+                            .getContextClassLoader()
+                            .loadClass(className);
+
+                    classes.add(cls);
+
+                } catch (ClassNotFoundException e) {
+                    System.out.println("Not found: " + className);
+                }
             }
         }
-        return classes;
-    }
-
-    public String getPackageName() {
-        return packageName;
-    }
-
-    public void setPackageName(String packageName) {
-        this.packageName = packageName;
     }
 }
