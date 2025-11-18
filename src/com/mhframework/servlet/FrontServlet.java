@@ -2,6 +2,7 @@ package com.mhframework.servlet;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 
 import com.mhframework.handler.controller.ClassMethod;
@@ -51,9 +52,12 @@ public class FrontServlet extends HttpServlet {
                 ClassMethod classMethod = urlHandler.getByUrl(mapUrl, url);
 
                 if (classMethod != null) {
-                    out.println("ServletPath : " + url);
-                    out.print("Class : " + classMethod.getClass().getSimpleName() + ", Methode : "
-                            + classMethod.getMethod().getName());
+                    Method method = classMethod.getMethod();
+                    Object instanceController = classMethod.getCls().getConstructor().newInstance();
+                    if (method.getReturnType().equals(String.class)) {
+                        out.println((String) method.invoke(instanceController));
+                    }
+                    throw new ServletException("Type de retour non validé");
                 } else {
                     out.println("<h1>404 : Not Found</h1>");
                 }

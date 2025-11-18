@@ -39,8 +39,6 @@ public class PackageScanner {
 
             while (resources.hasMoreElements()) {
                 URL resource = resources.nextElement();
-                System.out.println(resource);
-
                 if (resource.getProtocol().equals("file")) {
                     File directory = new File(URLDecoder.decode(resource.getFile(), "UTF-8"));
                     scanDirectory(directory, directory.getAbsolutePath(), classes);
