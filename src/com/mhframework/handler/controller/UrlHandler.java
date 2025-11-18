@@ -11,15 +11,6 @@ import com.mhframework.utils.PackageScanner;
 
 public class UrlHandler {
 
-    public String appelleMethode(ClassMethod classMethod) throws Exception {
-        Method method = classMethod.getMethod();
-        if (method.getReturnType().equals(String.class)) {
-            Object instanceController = classMethod.getCls().getConstructor().newInstance();
-            return (String) method.invoke(instanceController);
-        }
-        return null;
-    }
-
     public ClassMethod getByUrl(HashMap<String, ClassMethod> map, String url) {
         return map.get(url);
     }
