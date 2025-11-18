@@ -7,6 +7,7 @@ import java.util.HashMap;
 
 import com.mhframework.handler.controller.ClassMethod;
 import com.mhframework.handler.controller.UrlHandler;
+import com.mhframework.handler.view.ModelView;
 
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletContext;
@@ -56,8 +57,13 @@ public class FrontServlet extends HttpServlet {
                     Object instanceController = classMethod.getCls().getConstructor().newInstance();
                     if (method.getReturnType().equals(String.class)) {
                         out.println((String) method.invoke(instanceController));
+                    } else if (method.getReturnType().equals(ModelView.class)) {
+                        String viewName = ((ModelView) method.invoke(instanceController)).getView();
+                        RequestDispatcher disp = req.getRequestDispatcher(viewName);
+                        disp.forward(req, res);
+                    } else {
+                        throw new ServletException("Type de retour non validé");
                     }
-                    throw new ServletException("Type de retour non validé");
                 } else {
                     out.println("<h1>404 : Not Found</h1>");
                 }
