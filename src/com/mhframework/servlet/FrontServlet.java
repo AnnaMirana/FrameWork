@@ -36,6 +36,13 @@ public class FrontServlet extends HttpServlet {
         return getServletContext().getResource(path) != null;
     }
 
+    private void shareData(HttpServletRequest req, ModelView modelView) {
+        HashMap<String, Object> mapData = modelView.getData();
+        mapData.forEach((key, value) -> {
+            req.setAttribute(key, value);
+        });
+    }
+
     @Override
     protected void service(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
         String path = req.getServletPath();
@@ -58,7 +65,10 @@ public class FrontServlet extends HttpServlet {
                     if (method.getReturnType().equals(String.class)) {
                         out.println((String) method.invoke(instanceController));
                     } else if (method.getReturnType().equals(ModelView.class)) {
-                        String viewName = ((ModelView) method.invoke(instanceController)).getView();
+                        ModelView modelView = (ModelView) method.invoke(instanceController);
+                        String viewName = modelView.getView() ;
+
+                        shareData(req, modelView);
                         RequestDispatcher disp = req.getRequestDispatcher(viewName);
                         disp.forward(req, res);
                     } else {

@@ -1,8 +1,11 @@
 package com.mhframework.handler.view;
 
+import java.util.HashMap;
+
 public class ModelView {
 
     private String view;
+    private HashMap<String, Object> data = new HashMap<>();
 
     public ModelView() {
     }
@@ -19,4 +22,11 @@ public class ModelView {
         this.view = view;
     }
 
+    public HashMap<String, Object> getData() {
+        return data;
+    }
+
+    public void addData(String key, Object value) {
+        data.put(key, value);
+    }
 }
