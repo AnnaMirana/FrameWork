@@ -32,7 +32,7 @@ rm -rf "$BUILD_PATH"*
 
 find . -name "*.java" > source.txt
 
-if javac -d  "$BUILD_PATH/" -cp "$LIBRARY_PATH*" @source.txt; then
+if javac -parameters -d  "$BUILD_PATH/" -cp "$LIBRARY_PATH*" @source.txt; then
     echo -e "${GREEN}\tCompilation reussie${NC}\n"
 else
     echo -e "${RED}\tCompilation Failed${NC}\n"
