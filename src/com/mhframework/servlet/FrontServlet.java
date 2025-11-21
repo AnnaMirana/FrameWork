@@ -61,11 +61,11 @@ public class FrontServlet extends HttpServlet {
 
                 if (classMethod != null) {
                     Method method = classMethod.getMethod();
-                    Object instanceController = classMethod.getCls().getConstructor().newInstance();
+                    Object valueOfInvoke = urlHandler.invokeMethodeUrl(req, classMethod);
                     if (method.getReturnType().equals(String.class)) {
-                        out.println((String) method.invoke(instanceController));
+                        out.println((String) valueOfInvoke);
                     } else if (method.getReturnType().equals(ModelView.class)) {
-                        ModelView modelView = (ModelView) method.invoke(instanceController);
+                        ModelView modelView = (ModelView) valueOfInvoke;
                         String viewName = modelView.getView() ;
 
                         shareData(req, modelView);
