@@ -8,6 +8,7 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 
+import com.mhframework.annotation.ParamRequest;
 import com.mhframework.annotation.UrlMapping;
 import com.mhframework.utils.PackageScanner;
 
@@ -28,15 +29,30 @@ public class UrlHandler {
         Object[] valuesParam = new Object[parameters.length];
         Enumeration<String> nameParam = request.getParameterNames();
 
-        while (nameParam.hasMoreElements()) {
-            String name = nameParam.nextElement();
-            for (int a = 0; a < parameters.length; a++) {
-                if (parameters[a].getName().equals(name)) {
-                    System.out.println("Nom de parametre dans req : " + name + ", Nom de parametree dans Parameters : " + parameters[a].getName());
-                    valuesParam[a] = valueObjectByType(request.getParameter(name), parameters[a].getType());
-                    break;
+        try {
+            while (nameParam.hasMoreElements()) {
+                String name = nameParam.nextElement();
+                for (int a = 0; a < parameters.length; a++) {
+
+                    ParamRequest paramRequest = parameters[a].getAnnotation(ParamRequest.class);
+
+                    if (parameters[a].getName().equals(name)) {
+                        System.out.println(
+                                "Nom de parametre dans req : " + name + ", Nom de parametree dans Parameters : "
+                                        + parameters[a].getName());
+                        valuesParam[a] = valueObjectByType(request.getParameter(name), parameters[a].getType());
+                    } else if (paramRequest != null && paramRequest.value().equals(name)) {
+                        String nomVar = paramRequest.value();
+                        System.out
+                                .println("C'est dans une annotation , reqName : " + name + " , ParamName : " + nomVar);
+                        valuesParam[a] = valueObjectByType(request.getParameter(name), parameters[a].getType());
+                    }
                 }
             }
+        } catch (IllegalArgumentException e) {
+            throw new Exception("Nom de parametre introuvable");
+        } catch (Exception e) {
+            throw e;
         }
 
         return method.invoke(instance, valuesParam);

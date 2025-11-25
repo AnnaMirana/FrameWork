@@ -22,8 +22,6 @@ if [ "$one" = -1 ]; then
     exit 1
 fi
 
-javac -version
-
 echo -e "$ORANGE\t...Lancement du Script\n$NC"
 
 echo -e "$BLUE...compilation du code java$NC\n"
