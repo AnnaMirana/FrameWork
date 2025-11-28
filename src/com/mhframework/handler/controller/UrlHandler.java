@@ -37,8 +37,13 @@ public class UrlHandler {
 
         try {
             if (!nameParam.hasMoreElements()) {
+                Matcher matcher = classMethod.getMatcher();
                 for (int a = 0; a < valuesParam.length; a++) {
-                    valuesParam[a] = valueObjectByType(null, parameters[a].getType());
+                    String value = matcher.group(parameters[a].getName());
+                    if (value == null) {
+                        throw new Exception("Le param " + parameters[a].getName() + " doit avoir du valeur car null est trouvé");
+                    }
+                    valuesParam[a] = valueObjectByType(value, parameters[a].getType());
                 }
             }
 
@@ -119,7 +124,6 @@ public class UrlHandler {
 
             if (matcher.matches()) {
                 System.out.println("Mi Match leh izi !!");
-                System.out.println(urlRegex);
                 ClassMethod classMethod = map.get(urlMap);
                 classMethod.setMatcher(matcher);
 
