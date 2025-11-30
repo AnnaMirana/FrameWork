@@ -19,17 +19,22 @@ import jakarta.servlet.http.HttpServletResponse;
 public class FrontServlet extends HttpServlet {
 
     private RequestDispatcher dispatcher;
-    private HashMap<String, ClassMethod> mapUrl;
+    private HashMap<String, HashMap<String, ClassMethod>> mapUrl;
     private UrlHandler urlHandler;
 
     @Override
     public void init() throws ServletException {
-        dispatcher = getServletContext().getNamedDispatcher("default");
-        urlHandler = new UrlHandler();
-        mapUrl = urlHandler.urlMapping();
+        try {
+            dispatcher = getServletContext().getNamedDispatcher("default");
+            urlHandler = new UrlHandler();
+            mapUrl = urlHandler.giveUrlMap();
 
-        ServletContext context = getServletContext();
-        context.setAttribute("urlMapping", mapUrl);
+            ServletContext context = getServletContext();
+            context.setAttribute("urlMapping", mapUrl);
+        } catch (Exception e) {
+            throw new ServletException(e.getMessage());
+        }
+
     }
 
     private boolean isRessource(String path) throws IOException {
@@ -43,9 +48,10 @@ public class FrontServlet extends HttpServlet {
         });
     }
 
-    @Override
-    protected void service(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
+    protected void service(HttpServletRequest req, HttpServletResponse res, String methode)
+            throws ServletException, IOException {
         String path = req.getServletPath();
+        System.out.println("METHOD : " + methode);
         if (isRessource(path)) {
             dispatcher.forward(req, res);
             return;
@@ -57,7 +63,7 @@ public class FrontServlet extends HttpServlet {
 
                 String url = req.getServletPath();
 
-                ClassMethod classMethod = urlHandler.getByUrl(mapUrl, url);
+                ClassMethod classMethod = urlHandler.getByUrl(mapUrl, url, methode);
 
                 if (classMethod != null) {
                     Method method = classMethod.getMethod();
@@ -66,7 +72,7 @@ public class FrontServlet extends HttpServlet {
                         out.println((String) valueOfInvoke);
                     } else if (method.getReturnType().equals(ModelView.class)) {
                         ModelView modelView = (ModelView) valueOfInvoke;
-                        String viewName = modelView.getView() ;
+                        String viewName = modelView.getView();
 
                         shareData(req, modelView);
                         RequestDispatcher disp = req.getRequestDispatcher(viewName);
@@ -89,36 +95,36 @@ public class FrontServlet extends HttpServlet {
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        service(req, resp);
+        service(req, resp, "POST");
     }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        service(req, resp);
+        service(req, resp, "GET");
     }
 
     @Override
     protected void doDelete(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        service(req, resp);
+        service(req, resp, "DELETE");
     }
 
     @Override
     protected void doPut(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        service(req, resp);
+        service(req, resp, "PUT");
     }
 
     @Override
     protected void doHead(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        service(req, resp);
+        service(req, resp, "HEAD");
     }
 
     @Override
     protected void doOptions(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        service(req, resp);
+        service(req, resp, "OPTIONS");
     }
 
     @Override
     protected void doTrace(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        service(req, resp);
+        service(req, resp, "TRACE");
     }
 }

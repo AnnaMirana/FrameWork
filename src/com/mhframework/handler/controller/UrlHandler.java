@@ -11,14 +11,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.mhframework.annotation.ParamRequest;
-import com.mhframework.annotation.UrlMapping;
+import com.mhframework.annotation.method.GetMapping;
+import com.mhframework.annotation.method.PostMapping;
 import com.mhframework.utils.PackageScanner;
 
 import jakarta.servlet.http.HttpServletRequest;
 
 public class UrlHandler {
 
-    Pattern pattern = null;
+    private Pattern pattern = null;
+    private String[] listMethode = new String[] {"GET", "POST"};
+
+    @SuppressWarnings("unchecked")
+    private Class<? extends Annotation>[] listAnnotation = new Class[] {GetMapping.class, PostMapping.class};
+
 
     public Object invokeMethodeUrl(HttpServletRequest request, ClassMethod classMethod) throws Exception {
         Object instance = classMethod.getCls().getConstructor().newInstance();
@@ -110,9 +116,14 @@ public class UrlHandler {
         return regex;
     }
 
-    public ClassMethod getByUrl(HashMap<String, ClassMethod> map, String url) {
+    public ClassMethod getByUrl(HashMap<String, HashMap<String, ClassMethod>> mapMethod, String url, String methode) {
+
+        HashMap<String, ClassMethod> map = mapMethod.get(methode);
 
         for (String urlMap : map.keySet()) {
+
+            System.out.println(urlMap);
+
             if (urlMap.equals(url)) {
                 return map.get(urlMap);
             }
@@ -133,23 +144,63 @@ public class UrlHandler {
         return null;
     }
 
-    public HashMap<String, ClassMethod> urlMapping() {
+    /**
+     * Ito ilay mamerina anleh Hasmap miaraka amin methode
+     * zany oe raha maka oe post de izay classmethode misy Postmapping no alainy
+     * @return
+     */
+    public HashMap<String, HashMap<String, ClassMethod>> giveUrlMap() throws Exception {
+        HashMap<String, HashMap<String, ClassMethod>> urlMap = new HashMap<>();
+        
+        for (int a = 0; a < listMethode.length; a++) {
+            HashMap<String, ClassMethod> clsMethodeForAMethode =  urlMapping(listAnnotation[a]);
+            urlMap.put(listMethode[a], clsMethodeForAMethode);
+        }
+        return urlMap;
+    }
+
+    /**
+     * Hasmap avy amin'ny methode iray, Ex. Post ou Get
+     * @param clsAnnotation
+     * @return
+     */
+    public HashMap<String, ClassMethod> urlMapping(Class<? extends Annotation> clsAnnotation) throws Exception {
         HashMap<String, ClassMethod> map = new HashMap<>();
 
         PackageScanner packageScanner = new PackageScanner(null);
         List<Class<?>> clsController = packageScanner.clsController();
 
         for (Class<?> cls : clsController) {
-            List<Method> methods = methodeAnnoteByClass(cls, UrlMapping.class);
+            List<Method> methods = methodeAnnoteByClass(cls, clsAnnotation);
 
             for (Method method : methods) {
-                UrlMapping urlMapping = method.getAnnotation(UrlMapping.class);
-                map.put(urlMapping.value(), new ClassMethod(cls, method, urlMapping.value()));
+                String value = urlValue(method.getAnnotation(clsAnnotation));
+                map.put(value, new ClassMethod(cls, method, value));
             }
-
         }
         return map;
     }
+
+        private <A extends Annotation> String urlValue(A annotation) throws Exception {
+            String value = null;
+
+            for (int a = 0; a < listAnnotation.length; a++) {
+
+                System.out.println(annotation.annotationType());
+                
+                if (annotation.annotationType().equals(listAnnotation[a])) {
+
+                    Method method = annotation.getClass().getDeclaredMethod("value");
+                    value = (String) method.invoke(annotation);
+                    break;
+                }
+            }
+
+            if (value == null) {
+                throw new Exception("Aucun URL pour ce type d'annotation");
+            }
+            return value;
+        }
 
     public static List<Method> methodeAnnoteByClass(Class<?> cls, Class<? extends Annotation> clsAnnotation) {
         List<Method> methods = new ArrayList<>();
