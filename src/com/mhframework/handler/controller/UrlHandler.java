@@ -3,10 +3,13 @@ package com.mhframework.handler.controller;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -49,7 +52,7 @@ public class UrlHandler {
                     if (value == null) {
                         throw new Exception("Le param " + parameters[a].getName() + " doit avoir du valeur car null est trouvé");
                     }
-                    valuesParam[a] = valueObjectByType(value, parameters[a].getType());
+                    valuesParam[a] = valueObjectByType(value, parameters[a], request);
                 }
             }
 
@@ -63,12 +66,14 @@ public class UrlHandler {
                         System.out.println(
                                 "Nom de parametre dans req : " + name + ", Nom de parametree dans Parameters : "
                                         + parameters[a].getName());
-                        valuesParam[a] = valueObjectByType(request.getParameter(name), parameters[a].getType());
+                        valuesParam[a] = valueObjectByType(request.getParameter(name), parameters[a], request);
                     } else if (paramRequest != null && paramRequest.value().equals(name)) {
                         String nomVar = paramRequest.value();
                         System.out
                                 .println("C'est dans une annotation , reqName : " + name + " , ParamName : " + nomVar);
-                        valuesParam[a] = valueObjectByType(request.getParameter(name), parameters[a].getType());
+                        valuesParam[a] = valueObjectByType(request.getParameter(name), parameters[a], request);
+                    } else if (Map.class.isAssignableFrom(parameters[a].getType())) {
+                        valuesParam[a] = valueObjectByType(request.getParameter(name), parameters[a], request);
                     }
                 }
             }
@@ -87,7 +92,28 @@ public class UrlHandler {
         return taObjects;
     }
 
-    private Object valueObjectByType(Object obj, Class<?> cls) throws Exception {
+        private boolean isMapStringObject(Parameter parameter) throws Exception {
+
+            if (!Map.class.isAssignableFrom(parameter.getType())) return false;
+
+            Type type = parameter.getParameterizedType();
+
+            if (!(type instanceof ParameterizedType)) return false;
+
+            ParameterizedType pType = (ParameterizedType) type;
+
+            Type[] args = pType.getActualTypeArguments();
+
+            if (args.length != 2) return false;
+
+            return args[0] == String.class && args[1] == Object.class;
+
+        }
+
+    private Object valueObjectByType(Object obj, Parameter parameter, HttpServletRequest request) throws Exception {
+
+        Class<?> cls = parameter.getType();
+        System.out.println(cls.getName());
 
         System.out.println(obj + " " + cls.getTypeName());
 
@@ -100,7 +126,24 @@ public class UrlHandler {
             return null;
         }
 
-        if (cls.equals(Integer.class) || cls.equals(int.class)) {
+        if (Map.class.isAssignableFrom(cls)) {
+
+            if (!isMapStringObject(parameter)) {
+                throw new Exception("Map paramatre invalide");
+            }
+
+            Map<String, Object> map = new HashMap<>();
+
+            Enumeration<String> keys = request.getParameterNames();
+
+            while (keys.hasMoreElements()) {
+                String key = keys.nextElement();
+                map.put(key, request.getParameter(key));
+            }
+
+            return map;
+
+        }  else if (cls.equals(Integer.class) || cls.equals(int.class)) {
             return Integer.valueOf((String) obj);
         } else if (cls.equals(Double.class) || cls.equals(double.class)) {
             return Double.valueOf((String) obj);
@@ -185,8 +228,6 @@ public class UrlHandler {
             String value = null;
 
             for (int a = 0; a < listAnnotation.length; a++) {
-
-                System.out.println(annotation.annotationType());
                 
                 if (annotation.annotationType().equals(listAnnotation[a])) {
 
