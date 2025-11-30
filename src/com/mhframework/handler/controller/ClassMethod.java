@@ -47,5 +47,4 @@ public class ClassMethod {
     public void setMatcher(Matcher matcher) {
         this.matcher = matcher;
     }
-
 }
