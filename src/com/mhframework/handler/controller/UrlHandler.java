@@ -1,6 +1,7 @@
 package com.mhframework.handler.controller;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -30,6 +31,18 @@ public class UrlHandler {
     @SuppressWarnings("unchecked")
     private Class<? extends Annotation>[] listAnnotation = new Class[] {GetMapping.class, PostMapping.class};
 
+        private Object castByTypeClassic(Object obj, Class<?> cls) { 
+            if (cls.equals(Integer.class) || cls.equals(int.class)) {
+                return Integer.valueOf((String) obj);
+            } else if (cls.equals(Double.class) || cls.equals(double.class)) {
+                return Double.valueOf((String) obj);
+            } else if (cls.equals(Float.class) || cls.equals(float.class)) {
+                return Float.valueOf((String) obj);
+            } else if (cls.equals(String.class)) {
+                return (String) obj;
+            }
+            return null;
+        }
 
         private boolean isTypeObject(Class<?> cls) {
             if (cls.equals(Integer.class) || cls.equals(int.class)) {
@@ -54,7 +67,6 @@ public class UrlHandler {
         System.out.println(parameters.length + " " + method.getName());
 
         if (parameters.length == 0) {
-            System.out.println("oadray ary izi tato ah");
             return method.invoke(instance);
         }
 
@@ -63,7 +75,6 @@ public class UrlHandler {
 
         try {
             if (!nameParam.hasMoreElements()) {
-                System.out.println("tena ato ve zany");
                 Matcher matcher = classMethod.getMatcher();
                 for (int a = 0; a < valuesParam.length; a++) {
                     String value = matcher.group(parameters[a].getName());
@@ -153,28 +164,95 @@ public class UrlHandler {
 
                     Object valueOfField = request.getParameter(parameterName);
 
-                    Class<?> type = fld.getType();
+                    Class<?> tp = fld.getType();
 
                     System.out.println("FIeld : " + fld.getName() + " " + parameterName);
 
-                    if (type.equals(Integer.class) || type.equals(int.class)) {
-                        valueOfField =  Integer.valueOf((String) valueOfField);
-                    } else if (type.equals(Double.class) || type.equals(double.class)) {
-                        valueOfField =  Double.valueOf((String) valueOfField);
-                    } else if (type.equals(Float.class) || type.equals(float.class)) {
-                        valueOfField =  Float.valueOf((String) valueOfField);
-                    } else if (type.equals(String.class)) {
-                        valueOfField =  (String) valueOfField;
-                    } else {
+                    Object tempValue = castByTypeClassic(valueOfField, tp);
+
+                    if (tempValue != null) {
+                        valueOfField = tempValue;
+                    } else if (tp.isArray()) {
+                        
+                        Class<?> componentType = tp.getComponentType();
+
+                        valueOfField = getData(componentType, request, parameterName);
+
+                    } 
+                    // else if (Iterable.class.isAssignableFrom(tp) && !Map.class.isAssignableFrom(tp)) {
+
+                    // } 
+                    else {
                         valueOfField =  valueOfTypeObject(fld.getType(), request, parameterName);
                     }
 
                     System.out.println(valueOfField);
 
+                    if (valueOfField != null) {
+                        System.out.println("tsy null  " + fld.getType() + " " + valueOfField.getClass());
+
+                    } else {
+                        System.out.println("null izi ato");
+                    }
+
                     method.invoke(instance, valueOfField);
                 }
 
                 return instance;
+            }
+
+                private Object valueTabPrimitive(Class<?> cls, String[] value) {
+                    if (cls.equals(double.class)) {
+                        double[] tab = new double[value.length];
+                        for (int a = 0; a < value.length; a++) {
+                            tab[a] = (double) castByTypeClassic(value[a], double.class);
+                        }
+                        return tab;
+                    } else if (cls.equals(float.class)) {
+                        float[] tab = new float[value.length];
+                        for (int a = 0; a < value.length; a++) {
+                            tab[a] = (float) castByTypeClassic(value[a], float.class);
+                        }
+                        return tab;
+                    } else {
+                        int[] tab = new int[value.length];
+                        for (int a = 0; a < value.length; a++) {
+                            tab[a] = (int) castByTypeClassic(value[a], int.class);
+                        }
+                        return tab;
+                    }
+                }
+
+            @SuppressWarnings("unchecked")
+            private <T> Object getData(Class<T> cls, HttpServletRequest request, String paramName) {
+
+                String[] value = request.getParameterMap().get(paramName);
+
+                System.out.println("Nomm class : " + cls.getName() + "is Primitive : " + cls.isPrimitive());
+
+                System.out.println(cls + " cls io : ============ : ");
+
+                if (value == null) return null;
+
+                if (cls.isPrimitive()) {
+                    return valueTabPrimitive(cls, value);
+                }
+
+                T[] tabs = (T[]) Array.newInstance(cls, value.length);
+
+                System.out.println("\n<===============>");
+                
+                for (int a = 0; a < value.length; a++) {
+                    tabs[a] = (T) castByTypeClassic(value[a], cls);
+                    System.out.println(tabs[a]);
+                }
+
+                System.out.println("<===============>\n");
+
+
+                System.out.println(cls + "   ----------   " + paramName);
+
+                return tabs;
             }
 
     private Object valueObjectByType(Object obj, Parameter parameter, HttpServletRequest request) throws Exception {
@@ -211,15 +289,9 @@ public class UrlHandler {
 
             return map;
 
-        }  else if (cls.equals(Integer.class) || cls.equals(int.class)) {
-            return Integer.valueOf((String) obj);
-        } else if (cls.equals(Double.class) || cls.equals(double.class)) {
-            return Double.valueOf((String) obj);
-        } else if (cls.equals(Float.class) || cls.equals(float.class)) {
-            return Float.valueOf((String) obj);
-        } 
+        }  
 
-        return (String) obj;
+        return castByTypeClassic(obj, cls);
     }
 
     private String urlToRegex(String url) {
@@ -323,5 +395,18 @@ public class UrlHandler {
             }
         }
         return methods;
+    }
+
+    private Class<?> getGenericType(Field field) {
+        Type type = field.getGenericType();
+        if (type instanceof ParameterizedType) {
+            ParameterizedType parameterizedType = (ParameterizedType) type;
+
+            Type args =  parameterizedType.getActualTypeArguments()[0];
+            if (args instanceof Class<?>) {
+                return (Class<?>) args;
+            }
+        }
+        return null;
     }
 }
