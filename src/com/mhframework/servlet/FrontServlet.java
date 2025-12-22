@@ -5,9 +5,14 @@ import java.io.PrintWriter;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 
+import com.fatboyindustrial.gsonjavatime.Converters;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.mhframework.annotation.method.JsonApi;
 import com.mhframework.handler.controller.ClassMethod;
 import com.mhframework.handler.controller.UrlHandler;
 import com.mhframework.handler.view.ModelView;
+import com.mhframework.utils.JsonResult;
 
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletContext;
@@ -21,9 +26,11 @@ public class FrontServlet extends HttpServlet {
     private RequestDispatcher dispatcher;
     private HashMap<String, HashMap<String, ClassMethod>> mapUrl;
     private UrlHandler urlHandler;
+    private Gson gsonParser;
 
     @Override
     public void init() throws ServletException {
+        initGsonParser();
         try {
             dispatcher = getServletContext().getNamedDispatcher("default");
             urlHandler = new UrlHandler();
@@ -67,19 +74,49 @@ public class FrontServlet extends HttpServlet {
 
                 if (classMethod != null) {
                     Method method = classMethod.getMethod();
-                    Object valueOfInvoke = urlHandler.invokeMethodeUrl(req, classMethod);
-                    if (method.getReturnType().equals(String.class)) {
-                        out.println((String) valueOfInvoke);
-                    } else if (method.getReturnType().equals(ModelView.class)) {
-                        ModelView modelView = (ModelView) valueOfInvoke;
-                        String viewName = modelView.getView();
+                    String status = "success";
+                    int code = 200;
 
-                        shareData(req, modelView);
-                        RequestDispatcher disp = req.getRequestDispatcher(viewName);
-                        disp.forward(req, res);
-                    } else {
-                        throw new ServletException("Type de retour non validé");
+                    Object valueOfInvoke = "";
+
+                    try {
+                        valueOfInvoke  = urlHandler.invokeMethodeUrl(req, classMethod);
+                    } catch (Exception e) {
+                        status = "error";
+                        code = 500;
                     }
+
+                    if (method.isAnnotationPresent(JsonApi.class)) {
+                        JsonResult jsonResult = new JsonResult();
+
+                        Object data = valueOfInvoke;
+
+                        if (method.getReturnType().equals(ModelView.class)) {
+                            data = ((ModelView) valueOfInvoke).getData();
+                        }
+
+                        jsonResult.setData(data);
+                        jsonResult.setCode(code);
+                        jsonResult.setStatus(status);
+
+                        res.setHeader("content-type", "application/json");
+                        out.println(gsonParser.toJson(jsonResult));
+
+                    } else {
+                        if (method.getReturnType().equals(String.class)) {
+                            out.println((String) valueOfInvoke);
+                        } else if (method.getReturnType().equals(ModelView.class)) {
+                            ModelView modelView = (ModelView) valueOfInvoke;
+                            String viewName = modelView.getView();
+
+                            shareData(req, modelView);
+                            RequestDispatcher disp = req.getRequestDispatcher(viewName);
+                            disp.forward(req, res);
+                        } else {
+                            throw new ServletException("Type de retour non validé");
+                        }
+                    }
+
                 } else {
                     out.println("<h1>404 : Not Found</h1>");
                 }
@@ -91,6 +128,10 @@ public class FrontServlet extends HttpServlet {
 
         }
 
+    }
+
+    private void initGsonParser() {
+        gsonParser = Converters.registerAll(new GsonBuilder()).create();
     }
 
     @Override
