@@ -1,6 +1,8 @@
 package com.mhframework.handler.controller;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.lang.reflect.ParameterizedType;
@@ -17,6 +19,7 @@ import com.mhframework.annotation.ParamRequest;
 import com.mhframework.annotation.method.GetMapping;
 import com.mhframework.annotation.method.PostMapping;
 import com.mhframework.utils.PackageScanner;
+import com.mhframework.utils.Utils;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -24,10 +27,37 @@ public class UrlHandler {
 
     private Pattern pattern = null;
     private String[] listMethode = new String[] {"GET", "POST"};
+    private List<String> listParamName = new ArrayList<>();
+    private Pattern patternTab = Pattern.compile("^\\[(\\d)\\].*");
 
     @SuppressWarnings("unchecked")
     private Class<? extends Annotation>[] listAnnotation = new Class[] {GetMapping.class, PostMapping.class};
 
+        private Object castByTypeClassic(Object obj, Class<?> cls) { 
+            if (cls.equals(Integer.class) || cls.equals(int.class)) {
+                return Integer.valueOf((String) obj);
+            } else if (cls.equals(Double.class) || cls.equals(double.class)) {
+                return Double.valueOf((String) obj);
+            } else if (cls.equals(Float.class) || cls.equals(float.class)) {
+                return Float.valueOf((String) obj);
+            } else if (cls.equals(String.class)) {
+                return (String) obj;
+            }
+            return null;
+        }
+
+        private boolean isTypeObject(Class<?> cls) {
+            if (cls.equals(Integer.class) || cls.equals(int.class)) {
+                return false;
+            } else if (cls.equals(Double.class) || cls.equals(double.class)) {
+                return false;
+            } else if (cls.equals(Float.class) || cls.equals(float.class)) {
+                return false;
+            } else if (cls.equals(String.class)) {
+                return false;
+            }
+            return true;
+        }
 
     public Object invokeMethodeUrl(HttpServletRequest request, ClassMethod classMethod) throws Exception {
         Object instance = classMethod.getCls().getConstructor().newInstance();
@@ -42,12 +72,21 @@ public class UrlHandler {
         }
 
         Object[] valuesParam = initTableau(parameters.length);
-        Enumeration<String> nameParam = request.getParameterNames();
+        Enumeration<String> enumParamName = request.getParameterNames();
+
+        enumParamName.asIterator().forEachRemaining(e -> {
+            listParamName.add(e);
+        });
 
         try {
-            if (!nameParam.hasMoreElements()) {
+            if (listParamName.isEmpty()) {
                 Matcher matcher = classMethod.getMatcher();
                 for (int a = 0; a < valuesParam.length; a++) {
+
+                    if (matcher == null) {
+                        throw new Exception("Aucun Parametre trouvé");
+                    }
+
                     String value = matcher.group(parameters[a].getName());
                     if (value == null) {
                         throw new Exception("Le param " + parameters[a].getName() + " doit avoir du valeur car null est trouvé");
@@ -56,13 +95,17 @@ public class UrlHandler {
                 }
             }
 
-            while (nameParam.hasMoreElements()) {
-                String name = nameParam.nextElement();
+
+            for (String name : this.listParamName) {
                 for (int a = 0; a < parameters.length; a++) {
+
+                    System.out.println(parameters[a].getName());
 
                     ParamRequest paramRequest = parameters[a].getAnnotation(ParamRequest.class);
 
-                    if (parameters[a].getName().equals(name)) {
+                    if (isTypeObject(parameters[a].getType())) {
+                        valuesParam[a] = valueOfTypeObject(parameters[a].getType(), request, parameters[a].getName());
+                    } else if (parameters[a].getName().equals(name)) {
                         System.out.println(
                                 "Nom de parametre dans req : " + name + ", Nom de parametree dans Parameters : "
                                         + parameters[a].getName());
@@ -76,7 +119,7 @@ public class UrlHandler {
                         valuesParam[a] = valueObjectByType(request.getParameter(name), parameters[a], request);
                     }
                 }
-            }
+            }           
         } catch (Exception e) {
             throw e;
         }
@@ -108,7 +151,128 @@ public class UrlHandler {
 
             return args[0] == String.class && args[1] == Object.class;
 
-        }
+        }       
+
+                private Method getMethodByField(Field field, Class<?> cls) throws Exception {
+                    System.out.println(field.getName());
+                    return cls.getMethod("set" + Utils.capitalize(field.getName()), field.getType());
+                }
+
+                    /**
+                     * Mijery ny isanleh tableau amin'ny alalan'ny parametre
+                     * @param all
+                     * @param varialbleName
+                     * @return
+                     * @throws Exception
+                     */
+                    private int lengthTab(List<String> all, String varialbleName) throws Exception {
+                        List<String> filtre = all
+                                .stream()
+                                .filter(e -> e.startsWith(varialbleName))
+                                .toList();
+                        if (filtre.size() <= 0) {
+                            throw new Exception("Il n'y a pas de tableau pour le parametre : " + varialbleName);
+                        }
+                        int max = 0;
+                        boolean check = false;
+                        Matcher matcher = null;
+                        for (String str : filtre) {
+                            String replStr = str.replace(varialbleName, "");
+                            matcher = patternTab.matcher(replStr);
+                            if (matcher.matches()) {
+                                check = true;
+                                int value = Integer.parseInt(matcher.group(1));
+                                if (value > max) {
+                                    max = value;
+                                }
+                            } else {
+                                throw new Exception("Peut etre que ce n'est pas une tableau : " + str);
+                            }
+                            
+                        }
+
+                        return check ? max + 1 : max;
+                    }
+
+                    /**
+                     * Mijery Dimension anah tableau anakiray
+                     * @param cls
+                     * @return
+                     * @throws Exception
+                     */
+                    private int dimension(Class<?> cls) throws Exception {
+                        String name = cls.getName();
+                        int cpt = 0;
+                        for (char c : name.toCharArray()) {
+                            if (c == '[') {
+                                cpt++;
+                            }
+                        }
+                        return cpt;
+                    }
+
+            // DANGER Mila ovaina
+            private Object valueOfTypeObject(Class<?> cls, HttpServletRequest request, String paramName) throws Exception {
+                if (cls.isArray()) {
+                    Class<?> componentType = cls.getComponentType();
+
+                    if (isTypeObject(componentType) || dimension(cls) > 1) {
+                        int lengthTab = lengthTab(listParamName, paramName);
+
+                        Object array = Array.newInstance(componentType, lengthTab);
+
+                        // System.out.println(array.getClass() + " ito leh classes " + cls);
+
+                        for (int a = 0; a < lengthTab; a++) {
+                            Array.set(array, a, valueOfTypeObject(componentType, request, paramName + "[" + a + "]"));
+                        }
+
+                        return array;
+
+                    } else {
+                        String[] values = request.getParameterValues(paramName);
+
+                        int length = values == null ? 0 : values.length;
+
+                        Object rep = Array.newInstance(componentType, length);
+
+                        for (int a = 0; a < length; a++) {
+                            Object val = values[a];
+                            val = castByTypeClassic(val, componentType);
+                            Array.set(rep, a, val);
+                        }
+                        return rep;
+                    }
+                } else {
+                    Field[] fields = cls.getDeclaredFields();
+                    Object instance = cls.getConstructor().newInstance();
+                    
+                    for (Field fld : fields) {
+                        Method method = getMethodByField(fld, cls);
+                        Class<?> fldType = fld.getType();
+                        String parameterName = paramName + "." + fld.getName();
+
+                        // System.out.println("Parametername : " + parameterName);
+
+                        if (isTypeObject(fldType)) {
+                            method.invoke(instance, valueOfTypeObject(fldType, request, parameterName));
+                        } else {
+                            Object valueOfField = request.getParameter(parameterName);
+
+                            System.out.println("Field : " + fld.getName() + " " + parameterName);
+
+                            Object tempValue = castByTypeClassic(valueOfField, fldType);
+
+                            valueOfField = tempValue;
+
+                            System.out.println("valueOfField : " + valueOfField);
+
+                            method.invoke(instance, valueOfField);
+                        }
+                    }
+                    return instance;
+                }
+            }
 
     private Object valueObjectByType(Object obj, Parameter parameter, HttpServletRequest request) throws Exception {
 
@@ -129,7 +293,8 @@ public class UrlHandler {
         if (Map.class.isAssignableFrom(cls)) {
 
             if (!isMapStringObject(parameter)) {
-                throw new Exception("Map paramatre invalide");
+                // Tsy mithrow leh izi fa null fotsiny leh retoure
+                return null;
             }
 
             Map<String, Object> map = new HashMap<>();
@@ -143,14 +308,9 @@ public class UrlHandler {
 
             return map;
 
-        }  else if (cls.equals(Integer.class) || cls.equals(int.class)) {
-            return Integer.valueOf((String) obj);
-        } else if (cls.equals(Double.class) || cls.equals(double.class)) {
-            return Double.valueOf((String) obj);
-        } else if (cls.equals(Float.class) || cls.equals(float.class)) {
-            return Float.valueOf((String) obj);
-        }
-        return (String) obj;
+        }  
+
+        return castByTypeClassic(obj, cls);
     }
 
     private String urlToRegex(String url) {
@@ -255,4 +415,17 @@ public class UrlHandler {
         }
         return methods;
     }
+
+    // private Class<?> getGenericType(Field field) {
+    //     Type type = field.getGenericType();
+    //     if (type instanceof ParameterizedType) {
+    //         ParameterizedType parameterizedType = (ParameterizedType) type;
+
+    //         Type args =  parameterizedType.getActualTypeArguments()[0];
+    //         if (args instanceof Class<?>) {
+    //             return (Class<?>) args;
+    //         }
+    //     }
+    //     return null;
+    // }
 }
