@@ -75,12 +75,12 @@ public class UrlHandler {
                 for (int a = 0; a < partsObj.length; a++) {
                     Part part = (Part) partsObj[a];
                     if (part.getName().equals(name)) {
-                        data.add(new MultpartFile(part));
+                        data.add(new MultpartFile(name, part));
                     }
                 }
                return data.toArray(multpartFiles);
             } else {
-                return new MultpartFile(request.getPart(name));
+                return new MultpartFile(name, request.getPart(name));
             }
         }
 
