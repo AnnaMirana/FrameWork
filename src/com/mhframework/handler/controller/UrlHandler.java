@@ -22,6 +22,7 @@ import com.mhframework.utils.PackageScanner;
 import com.mhframework.utils.Utils;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.Part;
 
 public class UrlHandler {
 
@@ -55,8 +56,42 @@ public class UrlHandler {
                 return false;
             } else if (cls.equals(String.class)) {
                 return false;
+            } else if (cls.equals(Map.class) || cls.equals(MultpartFile.class)) {
+                return false;
             }
             return true;
+        }
+
+        private Object handleMultpartFile(Parameter parameter, HttpServletRequest request, String reqParam) throws Exception{
+            String name = reqParam != null ? reqParam : parameter.getName();
+            Object[] partsObj = request.getParts().toArray();
+            Class<?> clsType = parameter.getType();
+
+            if (clsType.isArray()) {
+                
+                List<MultpartFile> data = new ArrayList<>();
+                MultpartFile[] multpartFiles = new MultpartFile[data.size()];
+
+                for (int a = 0; a < partsObj.length; a++) {
+                    Part part = (Part) partsObj[a];
+                    if (part.getName().equals(name)) {
+                        data.add(new MultpartFile(part));
+                    }
+                }
+               return data.toArray(multpartFiles);
+            } else {
+                return new MultpartFile(request.getPart(name));
+            }
+        }
+
+        private boolean haveFile(Parameter[] parameters) {
+            for (Parameter parameter : parameters) {
+                Class<?> clsType = parameter.getType();
+                if ((clsType.isArray() && clsType.getComponentType().equals(MultpartFile.class)) ||  clsType.equals(MultpartFile.class)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
     public Object invokeMethodeUrl(HttpServletRequest request, ClassMethod classMethod) throws Exception {
@@ -65,7 +100,7 @@ public class UrlHandler {
 
         Parameter[] parameters = method.getParameters();
 
-        System.out.println(parameters.length + " " + method.getName());
+        boolean haveFile = haveFile(parameters);
 
         if (parameters.length == 0) {
             return method.invoke(instance);
@@ -74,12 +109,14 @@ public class UrlHandler {
         Object[] valuesParam = initTableau(parameters.length);
         Enumeration<String> enumParamName = request.getParameterNames();
 
-        enumParamName.asIterator().forEachRemaining(e -> {
-            listParamName.add(e);
-        });
+        if (enumParamName.hasMoreElements()) {
+                enumParamName.asIterator().forEachRemaining(e -> {
+                listParamName.add(e);
+            });
+        }
 
         try {
-            if (listParamName.isEmpty()) {
+            if (listParamName.isEmpty() && !haveFile) {
                 Matcher matcher = classMethod.getMatcher();
                 for (int a = 0; a < valuesParam.length; a++) {
 
@@ -95,13 +132,20 @@ public class UrlHandler {
                 }
             }
 
+            for (int a = 0; a < parameters.length; a++) {
+                
+                ParamRequest paramRequest = parameters[a].getAnnotation(ParamRequest.class);
 
-            for (String name : this.listParamName) {
-                for (int a = 0; a < parameters.length; a++) {
+                if (haveFile) {
+                    String reqParam = paramRequest != null ?  paramRequest.value() : null;
+                    valuesParam[a] = handleMultpartFile(parameters[a], request, reqParam);
+                    continue;
+                }
+
+                for (String name : this.listParamName) {
 
                     System.out.println(parameters[a].getName());
 
-                    ParamRequest paramRequest = parameters[a].getAnnotation(ParamRequest.class);
 
                     if (isTypeObject(parameters[a].getType())) {
                         valuesParam[a] = valueOfTypeObject(parameters[a].getType(), request, parameters[a].getName());
@@ -121,6 +165,7 @@ public class UrlHandler {
                 }
             }           
         } catch (Exception e) {
+            e.printStackTrace();
             throw e;
         }
 
@@ -307,9 +352,7 @@ public class UrlHandler {
             }
 
             return map;
-
-        }  
-
+        }
         return castByTypeClassic(obj, cls);
     }
 
@@ -415,17 +458,4 @@ public class UrlHandler {
         }
         return methods;
     }
-
-    // private Class<?> getGenericType(Field field) {
-    //     Type type = field.getGenericType();
-    //     if (type instanceof ParameterizedType) {
-    //         ParameterizedType parameterizedType = (ParameterizedType) type;
-
-    //         Type args =  parameterizedType.getActualTypeArguments()[0];
-    //         if (args instanceof Class<?>) {
-    //             return (Class<?>) args;
-    //         }
-    //     }
-    //     return null;
-    // }
 }
