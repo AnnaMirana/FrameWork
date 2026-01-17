@@ -1,38 +1,44 @@
 package com.mhframework.handler.controller;
 
-import java.io.File;
-
-import jakarta.servlet.http.Part;
-
 public class MultpartFile {
 
-    private String inputName;
-    private Part part;
+    private String name;
+    private String extension;
+    private byte[] bytes;
 
-    public MultpartFile(String inputName, Part part) {
-        this.inputName = inputName;
-        this.part = part;
+    public MultpartFile(String name, String extension, byte[] bytes) {
+        this.name = name;
+        this.extension = extension;
+        this.bytes = bytes;
     }
 
-    public void save(String path) throws Exception {
-        String realPath = path + File.separator + System.currentTimeMillis() + "_" + inputName + "_" + part.getSubmittedFileName();
-        part.write(realPath);
+    @Override
+    public String toString() {
+        return "MultpartFile [name=" + name + ", extension=" + extension + "]" + "len : " + bytes.length;
     }
 
-    public Part getPart() {
-        return part;
+    public String getName() {
+        return name;
     }
 
-    public void setPart(Part part) {
-        this.part = part;
+    public void setName(String name) {
+        this.name = name;
     }
 
-    public String getInputName() {
-        return inputName;
+    public byte[] getBytes() {
+        return bytes;
     }
 
-    public void setInputName(String inputName) {
-        this.inputName = inputName;
+    public void setBytes(byte[] bytes) {
+        this.bytes = bytes;
+    }
+
+    public String getExtension() {
+        return extension;
+    }
+
+    public void setExtension(String extension) {
+        this.extension = extension;
     }
 
 }

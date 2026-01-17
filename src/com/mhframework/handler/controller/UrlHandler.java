@@ -30,6 +30,7 @@ public class UrlHandler {
     private String[] listMethode = new String[] {"GET", "POST"};
     private List<String> listParamName = new ArrayList<>();
     private Pattern patternTab = Pattern.compile("^\\[(\\d)\\].*");
+    private Pattern patternFile = Pattern.compile("(?<filename>.+)\\.(?<ext>.+)");
 
     @SuppressWarnings("unchecked")
     private Class<? extends Annotation>[] listAnnotation = new Class[] {GetMapping.class, PostMapping.class};
@@ -56,42 +57,10 @@ public class UrlHandler {
                 return false;
             } else if (cls.equals(String.class)) {
                 return false;
-            } else if (cls.equals(Map.class) || cls.equals(MultpartFile.class)) {
+            } else if (cls.equals(Map.class)) {
                 return false;
             }
             return true;
-        }
-
-        private Object handleMultpartFile(Parameter parameter, HttpServletRequest request, String reqParam) throws Exception{
-            String name = reqParam != null ? reqParam : parameter.getName();
-            Object[] partsObj = request.getParts().toArray();
-            Class<?> clsType = parameter.getType();
-
-            if (clsType.isArray()) {
-                
-                List<MultpartFile> data = new ArrayList<>();
-                MultpartFile[] multpartFiles = new MultpartFile[data.size()];
-
-                for (int a = 0; a < partsObj.length; a++) {
-                    Part part = (Part) partsObj[a];
-                    if (part.getName().equals(name)) {
-                        data.add(new MultpartFile(name, part));
-                    }
-                }
-               return data.toArray(multpartFiles);
-            } else {
-                return new MultpartFile(name, request.getPart(name));
-            }
-        }
-
-        private boolean haveFile(Parameter[] parameters) {
-            for (Parameter parameter : parameters) {
-                Class<?> clsType = parameter.getType();
-                if ((clsType.isArray() && clsType.getComponentType().equals(MultpartFile.class)) ||  clsType.equals(MultpartFile.class)) {
-                    return true;
-                }
-            }
-            return false;
         }
 
     public Object invokeMethodeUrl(HttpServletRequest request, ClassMethod classMethod) throws Exception {
@@ -99,8 +68,6 @@ public class UrlHandler {
         Method method = classMethod.getMethod();
 
         Parameter[] parameters = method.getParameters();
-
-        boolean haveFile = haveFile(parameters);
 
         if (parameters.length == 0) {
             return method.invoke(instance);
@@ -116,19 +83,18 @@ public class UrlHandler {
         }
 
         try {
-            if (listParamName.isEmpty() && !haveFile) {
+            if (listParamName.isEmpty()) {
                 Matcher matcher = classMethod.getMatcher();
                 for (int a = 0; a < valuesParam.length; a++) {
-
-                    if (matcher == null) {
-                        throw new Exception("Aucun Parametre trouvé");
+                    if (matcher != null) {
+                         String value = matcher.group(parameters[a].getName());
+                        if (value == null) {
+                            throw new Exception("Le param " + parameters[a].getName() + " doit avoir du valeur car null est trouvé");
+                        }
+                        valuesParam[a] = valueObjectByType(value, parameters[a], request);
+                    } else if (Map.class.isAssignableFrom(parameters[a].getType())) {
+                        valuesParam[a] = valueObjectByType(null, parameters[a], request);
                     }
-
-                    String value = matcher.group(parameters[a].getName());
-                    if (value == null) {
-                        throw new Exception("Le param " + parameters[a].getName() + " doit avoir du valeur car null est trouvé");
-                    }
-                    valuesParam[a] = valueObjectByType(value, parameters[a], request);
                 }
             }
 
@@ -136,16 +102,9 @@ public class UrlHandler {
                 
                 ParamRequest paramRequest = parameters[a].getAnnotation(ParamRequest.class);
 
-                if (haveFile) {
-                    String reqParam = paramRequest != null ?  paramRequest.value() : null;
-                    valuesParam[a] = handleMultpartFile(parameters[a], request, reqParam);
-                    continue;
-                }
-
                 for (String name : this.listParamName) {
 
                     System.out.println(parameters[a].getName());
-
 
                     if (isTypeObject(parameters[a].getType())) {
                         valuesParam[a] = valueOfTypeObject(parameters[a].getType(), request, parameters[a].getName());
@@ -180,23 +139,34 @@ public class UrlHandler {
         return taObjects;
     }
 
-        private boolean isMapStringObject(Parameter parameter) throws Exception {
-
-            if (!Map.class.isAssignableFrom(parameter.getType())) return false;
-
+        private Type[] giveParameteryzedTypeMap(Parameter parameter) {
+            if (!Map.class.isAssignableFrom(parameter.getType())) {
+                return null;
+            }
             Type type = parameter.getParameterizedType();
-
-            if (!(type instanceof ParameterizedType)) return false;
-
+            if (!(type instanceof ParameterizedType)) {
+                return null;
+            }
             ParameterizedType pType = (ParameterizedType) type;
-
             Type[] args = pType.getActualTypeArguments();
+            return args;
+        }
 
-            if (args.length != 2) return false;
+            private boolean checkAssignationClass(Class<?> cls, Type type) throws Exception{
+                return cls.equals(Class.forName(type.getTypeName().split("<")[0]));
+            }
 
-            return args[0] == String.class && args[1] == Object.class;
+        private boolean isMapParameterByClss(Parameter parameter, Class<?> cls1, Class<?> cls2) throws Exception {
+            Type[] parTypes = giveParameteryzedTypeMap(parameter);
+            if ( parTypes == null) {
+                return false;
+            }
+            if (parTypes.length != 2) {
+                return false;
+            }
 
-        }       
+            return checkAssignationClass(cls1, parTypes[0]) && checkAssignationClass(cls2, parTypes[1]);
+        }
 
                 private Method getMethodByField(Field field, Class<?> cls) throws Exception {
                     System.out.println(field.getName());
@@ -326,7 +296,9 @@ public class UrlHandler {
 
         System.out.println(obj + " " + cls.getTypeName());
 
-        if (obj == null) {
+        boolean isMap = Map.class.isAssignableFrom(cls);
+
+        if (obj == null && !isMap) {
             if (cls.equals(Integer.class) || cls.equals(int.class) ||
                     cls.equals(Double.class) || cls.equals(double.class) ||
                     cls.equals(Float.class) || cls.equals(float.class)) {
@@ -335,23 +307,59 @@ public class UrlHandler {
             return null;
         }
 
-        if (Map.class.isAssignableFrom(cls)) {
+        if (isMap) {
 
-            if (!isMapStringObject(parameter)) {
-                // Tsy mithrow leh izi fa null fotsiny leh retoure
-                return null;
+            if (isMapParameterByClss(parameter, String.class, Object.class)) {
+                Map<String, Object> map = new HashMap<>();
+                Enumeration<String> keys = request.getParameterNames();
+                while (keys.hasMoreElements()) {
+                    String key = keys.nextElement();
+                    map.put(key, request.getParameter(key));
+                }
+                return map;
+            } else if (isMapParameterByClss(parameter, String.class, List.class)) {
+                Type[] tp = giveParameteryzedTypeMap(parameter);
+                
+                ParameterizedType listParamType = (ParameterizedType) tp[1];
+
+                // ! Gestoin de fichier
+                if (checkAssignationClass(MultpartFile.class, listParamType.getActualTypeArguments()[0])) {
+                    Map<String, List<MultpartFile>> values = new  HashMap<>();
+                    List<Part> parts = request.getParts().parallelStream().toList();
+
+                    String name; MultpartFile multpartFile;
+                    Matcher matcher;
+
+                    List<MultpartFile> listMultpartFiles;
+
+                    for (Part part : parts) {
+                        name = part.getName();
+                        
+                        if (!values.containsKey(name)) {
+                            listMultpartFiles = new ArrayList<>();
+                            values.put(name, listMultpartFiles);
+                        } else {
+                            listMultpartFiles = values.get(name);
+                        }
+
+                        matcher = patternFile.matcher(part.getSubmittedFileName());
+                        if (!matcher.matches()) {
+                            throw new Exception();
+                        }
+                        if (matcher.group("ext") == null) {
+                            throw new Exception("Le Fichier doivent avoir de l'extension");
+                        }
+
+                        multpartFile = new MultpartFile(matcher.group("filename"), matcher.group("ext"), part.getInputStream().readAllBytes());
+
+                        values.get(name).add(multpartFile);
+                    }
+
+                    return values;
+                }
             }
 
-            Map<String, Object> map = new HashMap<>();
-
-            Enumeration<String> keys = request.getParameterNames();
-
-            while (keys.hasMoreElements()) {
-                String key = keys.nextElement();
-                map.put(key, request.getParameter(key));
-            }
-
-            return map;
+            return null;
         }
         return castByTypeClassic(obj, cls);
     }
