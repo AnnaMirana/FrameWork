@@ -45,6 +45,7 @@ public class FrontServlet extends HttpServlet {
             ServletContext context = getServletContext();
             context.setAttribute("urlMapping", mapUrl);
         } catch (Exception e) {
+            e.printStackTrace();
             throw new ServletException(e.getMessage());
         }
 
@@ -88,6 +89,7 @@ public class FrontServlet extends HttpServlet {
                     try {
                         valueOfInvoke  = urlHandler.invokeMethodeUrl(req, classMethod);
                     } catch (Exception e) {
+                        e.printStackTrace();
                         status = "error";
                         code = 500;
                     }
@@ -128,6 +130,7 @@ public class FrontServlet extends HttpServlet {
                 }
 
             } catch (Exception e) {
+                e.printStackTrace();
                 e.printStackTrace(out);
                 throw new ServletException(e.getMessage());
             }

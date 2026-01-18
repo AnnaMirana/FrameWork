@@ -1,4 +1,4 @@
-package com.mhframework.annotation;
+package com.mhframework.annotation.param;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
