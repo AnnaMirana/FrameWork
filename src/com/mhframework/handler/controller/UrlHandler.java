@@ -15,13 +15,15 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.mhframework.annotation.ParamRequest;
 import com.mhframework.annotation.method.GetMapping;
 import com.mhframework.annotation.method.PostMapping;
+import com.mhframework.annotation.param.ParamRequest;
+import com.mhframework.annotation.param.Session;
 import com.mhframework.utils.PackageScanner;
 import com.mhframework.utils.Utils;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import jakarta.servlet.http.Part;
 
 public class UrlHandler {
@@ -31,6 +33,8 @@ public class UrlHandler {
     private List<String> listParamName = new ArrayList<>();
     private Pattern patternTab = Pattern.compile("^\\[(\\d)\\].*");
     private Pattern patternFile = Pattern.compile("(?<filename>.+)\\.(?<ext>.+)");
+    private boolean isSession = false;
+    private Map<String, Object> mapSession;
 
     @SuppressWarnings("unchecked")
     private Class<? extends Annotation>[] listAnnotation = new Class[] {GetMapping.class, PostMapping.class};
@@ -63,6 +67,26 @@ public class UrlHandler {
             return true;
         }
 
+        private Object invokeMethod(Method method, Object instance, Object[] valueParam, HttpServletRequest request) throws Exception {
+            Object value = null;
+            if (valueParam == null) {
+                value =  method.invoke(instance);
+            } else {
+                value =  method.invoke(instance, valueParam);
+            }
+
+            if (isSession) {
+                isSession = false;
+
+                HttpSession session = request.getSession();
+
+                for (String key : mapSession.keySet()) {
+                    session.setAttribute(key, mapSession.get(key));
+                }
+            }
+            return value;
+        }
+
     public Object invokeMethodeUrl(HttpServletRequest request, ClassMethod classMethod) throws Exception {
         Object instance = classMethod.getCls().getConstructor().newInstance();
         Method method = classMethod.getMethod();
@@ -70,7 +94,7 @@ public class UrlHandler {
         Parameter[] parameters = method.getParameters();
 
         if (parameters.length == 0) {
-            return method.invoke(instance);
+            return invokeMethod(method, instance, null, request);
         }
 
         Object[] valuesParam = initTableau(parameters.length);
@@ -128,7 +152,7 @@ public class UrlHandler {
             throw e;
         }
 
-        return method.invoke(instance, valuesParam);
+        return invokeMethod(method, instance, valuesParam, request);
     }
 
     private Object[] initTableau(int length) {
@@ -310,13 +334,28 @@ public class UrlHandler {
         if (isMap) {
 
             if (isMapParameterByClss(parameter, String.class, Object.class)) {
-                Map<String, Object> map = new HashMap<>();
-                Enumeration<String> keys = request.getParameterNames();
-                while (keys.hasMoreElements()) {
-                    String key = keys.nextElement();
-                    map.put(key, request.getParameter(key));
+                if (parameter.getAnnotation(Session.class) != null) {
+                    isSession = true;
+
+                    HttpSession httpSession = request.getSession();
+                    mapSession = new HashMap<>();
+                    
+                    httpSession.getAttributeNames().asIterator().forEachRemaining((e) -> {
+                        mapSession.put(e, httpSession.getAttribute(e));
+                    });
+
+                    return mapSession;
+
+                } else {
+                     Map<String, Object> map = new HashMap<>();
+                    Enumeration<String> keys = request.getParameterNames();
+                    while (keys.hasMoreElements()) {
+                        String key = keys.nextElement();
+                        map.put(key, request.getParameter(key));
+                    }
+                    return map;
                 }
-                return map;
+               
             } else if (isMapParameterByClss(parameter, String.class, List.class)) {
                 Type[] tp = giveParameteryzedTypeMap(parameter);
                 
