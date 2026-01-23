@@ -90,6 +90,7 @@ public class FrontServlet extends HttpServlet {
                         valueOfInvoke  = urlHandler.invokeMethodeUrl(req, classMethod);
                     } catch (Exception e) {
                         e.printStackTrace();
+                        valueOfInvoke = e.getMessage();
                         status = "error";
                         code = 500;
                     }
@@ -99,7 +100,7 @@ public class FrontServlet extends HttpServlet {
 
                         Object data = valueOfInvoke;
 
-                        if (method.getReturnType().equals(ModelView.class)) {
+                        if (valueOfInvoke.getClass().equals(ModelView.class)) {
                             data = ((ModelView) valueOfInvoke).getData();
                         }
 
@@ -111,9 +112,9 @@ public class FrontServlet extends HttpServlet {
                         out.println(gsonParser.toJson(jsonResult));
 
                     } else {
-                        if (method.getReturnType().equals(String.class)) {
+                        if (valueOfInvoke.getClass().equals(String.class)) {
                             out.println((String) valueOfInvoke);
-                        } else if (method.getReturnType().equals(ModelView.class)) {
+                        } else if (valueOfInvoke.getClass().equals(ModelView.class)) {
                             ModelView modelView = (ModelView) valueOfInvoke;
                             String viewName = modelView.getView();
 
