@@ -12,13 +12,17 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.mhframework.annotation.method.GetMapping;
 import com.mhframework.annotation.method.PostMapping;
+import com.mhframework.annotation.method.security.Authorized;
+import com.mhframework.annotation.method.security.Role;
 import com.mhframework.annotation.param.ParamRequest;
 import com.mhframework.annotation.param.Session;
+import com.mhframework.utils.Configuration;
 import com.mhframework.utils.PackageScanner;
 import com.mhframework.utils.Utils;
 
@@ -68,7 +72,41 @@ public class UrlHandler {
         }
 
         private Object invokeMethod(Method method, Object instance, Object[] valueParam, HttpServletRequest request) throws Exception {
+
+            Properties properties = Configuration.loadProperties();
+
             Object value = null;
+
+            Role role = method.getAnnotation(Role.class);
+            Authorized authorized = method.getAnnotation(Authorized.class);
+
+            HttpSession session = request.getSession();
+
+            if (authorized != null) {
+                String sessionAuth = (String) session.getAttribute(properties.getProperty("sess.autorized"));
+
+                if (sessionAuth == null) {
+                    throw new Exception("Il faut etre authentifié");
+                }
+            }
+
+            if (role != null) {
+                String sessionAuth = (String) session.getAttribute(properties.getProperty("sess.autorized"));
+                String sessionRole = (String) session.getAttribute(properties.getProperty("sess.role"));
+
+                if (sessionAuth == null) {
+                    throw new Exception("Il faut etre authentifié");
+                }
+
+                if (sessionRole == null) {
+                    throw new Exception("Role obligatoir");
+                }
+
+                if (!sessionRole.equals(role.value())) {
+                    throw new Exception("Role Incorrect");
+                }
+            }
+
             if (valueParam == null) {
                 value =  method.invoke(instance);
             } else {
@@ -78,7 +116,7 @@ public class UrlHandler {
             if (isSession) {
                 isSession = false;
 
-                HttpSession session = request.getSession();
+                session = request.getSession();
 
                 for (String key : mapSession.keySet()) {
                     session.setAttribute(key, mapSession.get(key));
